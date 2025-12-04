@@ -46,8 +46,8 @@ git push -u origin main
 If you want to set your actual name and email:
 
 ```bash
-git config --global user.name "Your Name"
-git config --global user.email "your.email@example.com"
+git config --global user.name "Reggiesbox"
+git config --global user.email "Regina.Vasquez7099@coyote.csusb.edu"
 ```
 
 Then update the last commit:
