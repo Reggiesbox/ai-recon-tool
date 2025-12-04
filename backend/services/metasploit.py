@@ -16,6 +16,49 @@ class MetasploitService:
     def __init__(self):
         self.resource_file = None
         self.sessions = {}
+
+    def _require_single_line(self, value: str, field: str) -> str:
+        """Ensure value exists, is non-empty, and contains no newlines."""
+        if value is None:
+            raise ValueError(f"{field} is required")
+        value = str(value).strip()
+        if not value:
+            raise ValueError(f"{field} cannot be empty")
+        if "\n" in value or "\r" in value:
+            raise ValueError(f"{field} must be a single line")
+        return value
+
+    def _sanitize_module_name(self, module: str, field: str) -> str:
+        """Validate exploit/payload module names."""
+        module = self._require_single_line(module, field)
+        if not re.fullmatch(r"[A-Za-z0-9_./-]+", module):
+            raise ValueError(f"{field} contains invalid characters")
+        return module
+
+    def _sanitize_host(self, host: str) -> str:
+        """Validate host strings (IP / hostname / ranges)."""
+        host = self._require_single_line(host, "rhosts")
+        if not re.fullmatch(r"[A-Za-z0-9_.:/-]+", host):
+            raise ValueError("rhosts contains invalid characters")
+        return host
+
+    def _sanitize_session_id(self, session_id: str) -> str:
+        """Ensure session id is numeric."""
+        session_id = self._require_single_line(session_id, "session_id")
+        if not re.fullmatch(r"\d+", session_id):
+            raise ValueError("session_id must be numeric")
+        return session_id
+
+    def _sanitize_command(self, command: str) -> str:
+        """Ensure command stays on one line."""
+        return self._require_single_line(command, "command")
+
+    def _sanitize_path(self, path: str) -> str:
+        """Ensure file paths are on a single line and contain safe chars."""
+        path = self._require_single_line(path, "shadow_path")
+        if not re.fullmatch(r"[A-Za-z0-9_./-]+", path):
+            raise ValueError("shadow_path contains invalid characters")
+        return path
     
     async def search_exploits(self, query: str) -> List[Dict]:
         """
@@ -67,13 +110,17 @@ class MetasploitService:
         """
         try:
             # Create resource file for msfconsole
-            resource_content = f"""
-use {exploit_name}
-set RHOSTS {rhosts}
-set RPORT {rport}
-set PAYLOAD {payload}
-exploit
-"""
+            safe_exploit = self._sanitize_module_name(exploit_name, "exploit_name")
+            safe_rhosts = self._sanitize_host(rhosts)
+            safe_payload = self._sanitize_module_name(payload, "payload")
+            safe_rport = int(rport)
+            resource_content = (
+                f"use {safe_exploit}\n"
+                f"set RHOSTS {safe_rhosts}\n"
+                f"set RPORT {safe_rport}\n"
+                f"set PAYLOAD {safe_payload}\n"
+                "exploit\n"
+            )
             
             # Write to temporary file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.rc', delete=False) as f:
@@ -162,10 +209,9 @@ exploit
             Command output
         """
         try:
-            resource_content = f"""
-sessions -i {session_id}
-{command}
-"""
+            safe_session = self._sanitize_session_id(session_id)
+            safe_command = self._sanitize_command(command)
+            resource_content = f"sessions -i {safe_session}\n{safe_command}\n"
             
             with tempfile.NamedTemporaryFile(mode='w', suffix='.rc', delete=False) as f:
                 f.write(resource_content)
@@ -207,8 +253,10 @@ sessions -i {session_id}
         """
         try:
             # Read shadow file
-            cat_command = f"cat {shadow_path}"
-            output = await self.execute_command(session_id, cat_command)
+            safe_session = self._sanitize_session_id(session_id)
+            safe_shadow_path = self._sanitize_path(shadow_path)
+            cat_command = f"cat {safe_shadow_path}"
+            output = await self.execute_command(safe_session, cat_command)
             
             # Extract hashes (lines with $id$hash format)
             hash_pattern = re.compile(r'^([^:]+):(\$[0-9a-zA-Z$./]+):')

@@ -94,9 +94,14 @@ class NmapScanner:
                         port_num = port.get("portid")
                         state = port.find("state")
                         service = port.find("service")
-                        
+                        if not port_num:
+                            continue
+                        try:
+                            port_number = int(port_num)
+                        except (TypeError, ValueError):
+                            continue
                         port_info = {
-                            "number": int(port_num),
+                            "number": port_number,
                             "protocol": port.get("protocol", "tcp"),
                             "state": state.get("state", "unknown") if state is not None else "unknown"
                         }

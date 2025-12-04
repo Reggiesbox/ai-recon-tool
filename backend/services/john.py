@@ -33,7 +33,7 @@ class JohnService:
         # Build john command
         cmd = ["john", "--format=sha512crypt", hash_file]
         
-        if wordlist and os.path.exists(wordlist_path):
+        if wordlist_path and os.path.exists(wordlist_path):
             cmd.extend(["--wordlist", wordlist_path])
         
         try:
